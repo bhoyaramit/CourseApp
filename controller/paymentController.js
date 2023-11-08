@@ -65,13 +65,12 @@ export const getRazorPayKey = catchAsyncError(async(req,res,next)=>{
       });
 })
 
+export const cancelSubscription = catchAsyncError(async (req, res, next) => {
+  const user = await User.findById(req.user._id);
 
-export const cancelSubscription = catchAsyncError(async(req,res,next)=>{
-    const user = await User.findById(req.user._id);
+  const subscriptionId = user.subscription.id;
+  let refund = false;
 
-    const subscriptionId = user.subscription.id;
-    let refund = false;
-  
   await instance.subscriptions.cancel(subscriptionId);
 
   const payment = await Payment.findOne({
@@ -87,16 +86,15 @@ export const cancelSubscription = catchAsyncError(async(req,res,next)=>{
     refund = true;
   }
 
+  await payment.remove();
+  user.subscription.id = undefined;
+  user.subscription.status = undefined;
+  await user.save();
 
-await payment.deleteOne();
-user.subscription.id = undefined;
-user.subscription.status = undefined;
-await user.save();
-
-res.status(200).json({
-        success: true,
-        message:
-        refund ? "Subscription cancelled, You will receive full refund within 7 days."
-               : "Subscription cancelled, Now refund initiated as subscription was cancelled after 7 days.",
-      });
-})
+  res.status(200).json({
+    success: true,
+    message: refund
+      ? "Subscription cancelled, You will receive full refund within 7 days."
+      : "Subscription cancelled, Now refund initiated as subscription was cancelled after 7 days.",
+  });
+});
